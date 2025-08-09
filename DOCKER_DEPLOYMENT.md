@@ -247,4 +247,4 @@ networks:
 For issues and questions:
 1. Check the [main README.md](README.md) for general usage
 2. Review the [OBSIDIAN_API_DOCUMENTATION.md](OBSIDIAN_API_DOCUMENTATION.md) for API details
-3. Check the [todo.md](todo.md) for current status and known issues
+3. Check [GitHub Issues](https://github.com/yourusername/mcp-obsidian/issues) for current status and known issues
