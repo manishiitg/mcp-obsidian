@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+OBSIDIAN_API_DOCUMENTATION.md
+todo.md
+
+# Test files
+test-connection.sh
+cmd/comprehensive-target-test.go
+cmd/test-obsidian.go
+
+# Build artifacts
+mcp-obsidian
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Docker files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Temporary files
+*.tmp
+*.temp

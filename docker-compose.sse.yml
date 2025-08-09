@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # MCP Obsidian Server - SSE Transport
+  mcp-obsidian-sse:
+    build:
+      context: .
+      dockerfile: Dockerfile.sse
+    container_name: mcp-obsidian-sse
+    ports:
+      - "8081:8081"
+    environment:
+      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY}
+      - OBSIDIAN_HOST=${OBSIDIAN_HOST:-127.0.0.1}
+      - OBSIDIAN_PORT=${OBSIDIAN_PORT:-27124}
+      - OBSIDIAN_USE_HTTPS=${OBSIDIAN_USE_HTTPS:-true}
+      - OBSIDIAN_PROTOCOL=${OBSIDIAN_PROTOCOL:-https}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    name: mcp-obsidian-sse-network
+    driver: bridge
