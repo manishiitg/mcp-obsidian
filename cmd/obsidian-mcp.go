@@ -3,8 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	obsidianHandlers "mcp-obsidian/obsidian/handlers"
+	"mcp-obsidian/obsidian/logger"
+	"mcp-obsidian/obsidian/middleware"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -26,10 +29,32 @@ var obsidianMcpCmd = &cobra.Command{
 	Short: "Start the Obsidian MCP server",
 	Long:  `Start an MCP server that provides Obsidian tools for managing notes, files, and content.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		startTime := time.Now()
+
+		// Initialize logging
+		logConfig := logger.LoadLogConfigFromEnv()
+		if err := logger.InitLogger(logConfig); err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Failed to initialize logger: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Log server startup
+		logger.LogServerEvent("server_startup", "🚀 Starting Obsidian MCP server...", map[string]interface{}{
+			"config": logger.GetLogConfigSummary(),
+		})
+
 		fmt.Fprintf(os.Stderr, "🚀 Starting Obsidian MCP server...\n")
 
 		// Check environment
 		checkObsidianMCPEnvironment()
+
+		// Log server startup completion
+		totalStartupTime := time.Since(startTime)
+		logger.LogServerEvent("server_startup_complete", "Obsidian MCP Server startup completed", map[string]interface{}{
+			"total_startup_time_ms": totalStartupTime.Milliseconds(),
+			"total_startup_time":    totalStartupTime.String(),
+			"transport":             getTransportType(),
+		})
 
 		// Create a new MCP server
 		s := server.NewMCPServer(
@@ -40,20 +65,31 @@ var obsidianMcpCmd = &cobra.Command{
 		)
 
 		// Register Obsidian tools
+		logger.LogInfo("Registering Obsidian tools", nil)
 		registerObsidianTools(s)
 
 		// Register Obsidian prompts from obsidian/prompts
 		fmt.Fprintf(os.Stderr, "📝 Registering Obsidian prompts...\n")
+		logger.LogInfo("Registering Obsidian prompts", nil)
 		if err := obsidianHandlers.RegisterObsidianPrompts(s); err != nil {
+			logger.LogError(err, "Failed to register Obsidian prompts", nil)
 			fmt.Fprintf(os.Stderr, "⚠️  Failed to register Obsidian prompts: %v\n", err)
 		} else {
+			logger.LogInfo("Obsidian prompts registered successfully", nil)
 			fmt.Fprintf(os.Stderr, "✅ Obsidian prompts registered successfully!\n")
 		}
 
 		if obsidianUseStdio {
 			// Start stdio server
 			fmt.Fprintf(os.Stderr, "📝 Starting Obsidian MCP Server with stdio transport\n")
+			logger.LogServerEvent("server_started", "Obsidian MCP Server started with stdio transport", map[string]interface{}{
+				"transport":       "stdio",
+				"startup_time_ms": time.Since(startTime).Milliseconds(),
+			})
 			if err := server.ServeStdio(s); err != nil {
+				logger.LogError(err, "Obsidian MCP stdio Server error", map[string]interface{}{
+					"transport": "stdio",
+				})
 				fmt.Fprintf(os.Stderr, "❌ Obsidian MCP stdio Server error: %v\n", err)
 				os.Exit(1)
 			}
@@ -62,6 +98,12 @@ var obsidianMcpCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "🚀 Starting Obsidian MCP Server with BOTH transports:\n")
 			fmt.Fprintf(os.Stderr, "   📡 SSE Server on port %s (endpoint: /sse)\n", obsidianSSEPort)
 			fmt.Fprintf(os.Stderr, "   🌐 StreamableHTTP Server on port %s (endpoint: /mcp)\n", obsidianHTTPPort)
+			logger.LogServerEvent("server_starting", "Starting Obsidian MCP Server with BOTH transports", map[string]interface{}{
+				"transport":       "both",
+				"sse_port":        obsidianSSEPort,
+				"http_port":       obsidianHTTPPort,
+				"startup_time_ms": time.Since(startTime).Milliseconds(),
+			})
 
 			// Start SSE server in a goroutine
 			go func() {
@@ -69,9 +111,20 @@ var obsidianMcpCmd = &cobra.Command{
 					server.WithSSEEndpoint("/sse"),
 				)
 				fmt.Fprintf(os.Stderr, "📡 Starting SSE server on port %s...\n", obsidianSSEPort)
+				logger.LogInfo("Starting SSE server", map[string]interface{}{
+					"port": obsidianSSEPort,
+				})
 				if err := sseServer.Start(":" + obsidianSSEPort); err != nil {
+					logger.LogError(err, "Obsidian MCP SSE Server error", map[string]interface{}{
+						"transport": "sse",
+						"port":      obsidianSSEPort,
+					})
 					fmt.Fprintf(os.Stderr, "❌ Obsidian MCP SSE Server error: %v\n", err)
 				} else {
+					logger.LogServerEvent("server_started", "Obsidian MCP SSE Server started successfully", map[string]interface{}{
+						"transport": "sse",
+						"port":      obsidianSSEPort,
+					})
 					fmt.Fprintf(os.Stderr, "✅ Obsidian MCP SSE Server started successfully on port %s\n", obsidianSSEPort)
 				}
 			}()
@@ -81,35 +134,74 @@ var obsidianMcpCmd = &cobra.Command{
 				server.WithEndpointPath("/mcp"),
 			)
 			fmt.Fprintf(os.Stderr, "🌐 Starting StreamableHTTP server on port %s...\n", obsidianHTTPPort)
+			logger.LogInfo("Starting StreamableHTTP server", map[string]interface{}{
+				"port": obsidianHTTPPort,
+			})
 			if err := streamableServer.Start(":" + obsidianHTTPPort); err != nil {
+				logger.LogError(err, "Obsidian MCP StreamableHTTP Server error", map[string]interface{}{
+					"transport": "streamable_http",
+					"port":      obsidianHTTPPort,
+				})
 				fmt.Fprintf(os.Stderr, "❌ Obsidian MCP StreamableHTTP Server error: %v\n", err)
 				os.Exit(1)
 			} else {
+				logger.LogServerEvent("server_started", "Obsidian MCP StreamableHTTP Server started successfully", map[string]interface{}{
+					"transport": "streamable_http",
+					"port":      obsidianHTTPPort,
+				})
 				fmt.Fprintf(os.Stderr, "✅ Obsidian MCP StreamableHTTP Server started successfully on port %s\n", obsidianHTTPPort)
 			}
 		} else if obsidianUseSSE {
 			// Start SSE server only
 			fmt.Fprintf(os.Stderr, "📡 Starting Obsidian MCP Server with SSE on port %s\n", obsidianSSEPort)
+			logger.LogServerEvent("server_starting", "Starting Obsidian MCP Server with SSE transport", map[string]interface{}{
+				"transport":       "sse",
+				"port":            obsidianSSEPort,
+				"startup_time_ms": time.Since(startTime).Milliseconds(),
+			})
 
 			sseServer := server.NewSSEServer(s,
 				server.WithSSEEndpoint("/sse"),
 			)
 
 			if err := sseServer.Start(":" + obsidianSSEPort); err != nil {
+				logger.LogError(err, "Obsidian MCP SSE Server error", map[string]interface{}{
+					"transport": "sse",
+					"port":      obsidianSSEPort,
+				})
 				fmt.Printf("Obsidian MCP SSE Server error: %v\n", err)
 				os.Exit(1)
+			} else {
+				logger.LogServerEvent("server_started", "Obsidian MCP SSE Server started successfully", map[string]interface{}{
+					"transport": "sse",
+					"port":      obsidianSSEPort,
+				})
 			}
 		} else {
 			// Start StreamableHTTP server only
 			fmt.Fprintf(os.Stderr, "🌐 Starting Obsidian MCP Server with StreamableHTTP on port %s\n", obsidianHTTPPort)
+			logger.LogServerEvent("server_starting", "Starting Obsidian MCP Server with StreamableHTTP transport", map[string]interface{}{
+				"transport":       "streamable_http",
+				"port":            obsidianHTTPPort,
+				"startup_time_ms": time.Since(startTime).Milliseconds(),
+			})
 
 			streamableServer := server.NewStreamableHTTPServer(s,
 				server.WithEndpointPath("/mcp"),
 			)
 
 			if err := streamableServer.Start(":" + obsidianHTTPPort); err != nil {
+				logger.LogError(err, "Obsidian MCP StreamableHTTP Server error", map[string]interface{}{
+					"transport": "streamable_http",
+					"port":      obsidianHTTPPort,
+				})
 				fmt.Printf("Obsidian MCP StreamableHTTP Server error: %v\n", err)
 				os.Exit(1)
+			} else {
+				logger.LogServerEvent("server_started", "Obsidian MCP StreamableHTTP Server started successfully", map[string]interface{}{
+					"transport": "streamable_http",
+					"port":      obsidianHTTPPort,
+				})
 			}
 		}
 	},
@@ -130,6 +222,7 @@ func init() {
 // registerObsidianTools registers all Obsidian-related tools
 func registerObsidianTools(s *server.MCPServer) {
 	fmt.Fprintf(os.Stderr, "🔧 Registering Obsidian tools...\n")
+	logger.LogInfo("Registering Obsidian tools", nil)
 
 	// Test connection tool
 	testConnectionTool := mcp.NewTool("obsidian_test_connection",
@@ -141,21 +234,21 @@ func registerObsidianTools(s *server.MCPServer) {
 	listFilesInVaultTool := mcp.NewTool("obsidian_list_files_in_vault",
 		mcp.WithDescription("List all files in the Obsidian vault"),
 	)
-	s.AddTool(listFilesInVaultTool, obsidianHandlers.ListFilesInVault)
+	s.AddTool(listFilesInVaultTool, middleware.LoggingMiddleware(obsidianHandlers.ListFilesInVault))
 
 	// List files in directory tool
 	listFilesInDirTool := mcp.NewTool("obsidian_list_files_in_dir",
 		mcp.WithDescription("List files in a specific directory"),
 		mcp.WithString("dirpath", mcp.Required(), mcp.Description("Directory path to list files from")),
 	)
-	s.AddTool(listFilesInDirTool, obsidianHandlers.ListFilesInDir)
+	s.AddTool(listFilesInDirTool, middleware.LoggingMiddleware(obsidianHandlers.ListFilesInDir))
 
 	// Get file contents tool
 	getFileContentsTool := mcp.NewTool("obsidian_get_file_contents",
 		mcp.WithDescription("Get the contents of a file"),
 		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the file")),
 	)
-	s.AddTool(getFileContentsTool, obsidianHandlers.GetFileContents)
+	s.AddTool(getFileContentsTool, middleware.LoggingMiddleware(obsidianHandlers.GetFileContents))
 
 	// Search tool
 	searchTool := mcp.NewTool("obsidian_search",
@@ -202,14 +295,14 @@ func registerObsidianTools(s *server.MCPServer) {
 
 	// Discover markdown structure tool
 	discoverStructureTool := mcp.NewTool("obsidian_discover_structure",
-		mcp.WithDescription("Discover and analyze the structure of a markdown file, showing patch-friendly targets for headings, blocks, and frontmatter"),
+		mcp.WithDescription("Discover and analyze the structure of a markdown file, showing patch-friendly targets for headings, blocks, and frontmatter. Always use this instead of reading full file contents."),
 		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
 	)
 	s.AddTool(discoverStructureTool, obsidianHandlers.DiscoverMarkdownStructure)
 
 	// Get nested content tool
 	getNestedContentTool := mcp.NewTool("obsidian_get_nested_content",
-		mcp.WithDescription("Get content from a markdown file using nested path selectors (e.g., 'Troubleshooting -> Certificate Errors')"),
+		mcp.WithDescription("Get content from a markdown file using nested path selectors (e.g., 'Troubleshooting -> Certificate Errors'). Always use this instead of reading full file contents"),
 		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
 		mcp.WithString("nested_path", mcp.Required(), mcp.Description("Nested path using ' -> ' separator (e.g., 'Troubleshooting -> Certificate Errors')")),
 	)
@@ -286,6 +379,7 @@ func registerObsidianTools(s *server.MCPServer) {
 	s.AddTool(getBlockReferenceTool, obsidianHandlers.GetBlockReference)
 
 	fmt.Fprintf(os.Stderr, "✅ Obsidian tools registered successfully!\n")
+	logger.LogInfo("Obsidian tools registered successfully", nil)
 }
 
 func checkObsidianMCPEnvironment() {
@@ -299,10 +393,27 @@ func checkObsidianMCPEnvironment() {
 	}
 
 	if len(missingVars) > 0 {
+		logger.LogWarn("Missing required environment variables", map[string]interface{}{
+			"missing_vars": missingVars,
+		})
 		fmt.Fprintf(os.Stderr, "⚠️  Warning: Missing required environment variables: %v\n", missingVars)
 		fmt.Fprintf(os.Stderr, "   Please set these environment variables before running the server.\n")
 	}
 
 	// Check if Obsidian is accessible
 	fmt.Fprintf(os.Stderr, "🔍 Checking Obsidian connection...\n")
+	logger.LogInfo("Checking Obsidian connection", nil)
+}
+
+// getTransportType returns a string describing the current transport configuration
+func getTransportType() string {
+	if obsidianUseStdio {
+		return "stdio"
+	} else if obsidianEnableBoth {
+		return "both"
+	} else if obsidianUseSSE {
+		return "sse"
+	} else {
+		return "streamable_http"
+	}
 }
