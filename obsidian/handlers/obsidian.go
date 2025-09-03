@@ -83,14 +83,14 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 
 	// Convert to JSON structure
 	fileList := make([]map[string]interface{}, 0, len(files))
-	
+
 	for _, file := range files {
 		fileInfo := map[string]interface{}{
 			"name": file.Name,
 			"type": file.Type,
 			"path": file.Path,
 		}
-		
+
 		// Add file-specific information
 		if file.Type == "file" {
 			if file.Size > 0 {
@@ -100,7 +100,7 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 				fileInfo["modified"] = file.ModifiedTime.Format("2006-01-02 15:04:05")
 			}
 		}
-		
+
 		// If it's a directory and max_depth > 1, recursively list contents
 		if file.Type == "directory" && maxDepth > 1 {
 			// For now, we'll just indicate it's a directory with potential children
@@ -108,16 +108,16 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 			fileInfo["has_children"] = true
 			fileInfo["children_depth"] = maxDepth - 1
 		}
-		
+
 		fileList = append(fileList, fileInfo)
 	}
 
 	// Create JSON structure
 	structureData := map[string]interface{}{
-		"directory": dirPath,
-		"max_depth": maxDepth,
+		"directory":   dirPath,
+		"max_depth":   maxDepth,
 		"total_items": len(files),
-		"items": fileList,
+		"items":       fileList,
 	}
 
 	// Convert to JSON
@@ -1902,6 +1902,10 @@ func GetNestedContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		printAvailablePaths(&buf, nestedElements, 0)
 	} else {
 		fmt.Fprintf(&buf, "Found content:\n\n")
+		if foundContent.Element.Type == "heading" {
+			fmt.Fprintf(&buf, "📝 PATCH TARGET: Use this exact target for patch_content operations:\n")
+			fmt.Fprintf(&buf, "Target: \"%s\"\n\n", foundContent.Element.Title)
+		}
 		printNestedContent(&buf, *foundContent, 0)
 	}
 
@@ -1922,11 +1926,24 @@ func findNestedContent(elements []types.NestedElement, pathParts []string) *type
 		if element.Element.Type == "heading" {
 			title := strings.TrimSpace(element.Element.Title)
 
+			// Try exact match first (case-insensitive, with emojis)
+			if strings.EqualFold(title, currentPart) {
+				if len(remainingParts) == 0 {
+					// Found the target element
+					return &element
+				} else {
+					// Continue searching in children
+					if found := findNestedContent(element.Children, remainingParts); found != nil {
+						return found
+					}
+				}
+			}
+
 			// Clean both strings for comparison (remove emojis and special chars)
 			cleanCurrentPart := removeEmojisAndSpecialChars(currentPart)
 			cleanTitle := removeEmojisAndSpecialChars(title)
 
-			// Try exact match first (case-insensitive)
+			// Try exact match with cleaned strings (case-insensitive)
 			if strings.EqualFold(cleanTitle, cleanCurrentPart) {
 				if len(remainingParts) == 0 {
 					// Found the target element
