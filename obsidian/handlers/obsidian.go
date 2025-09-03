@@ -1162,36 +1162,25 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 	elements := parseMarkdownElements(content)
 	nestedElements := buildNestedStructure(elements)
 
-	var buf strings.Builder
+	// Create JSON structure
+	structureData := map[string]interface{}{
+		"filepath": filePath,
+		"summary":  generateStructureSummary(elements),
+		"patch_targets": map[string]interface{}{
+			"headings":    buildHeadingTargetsJSON(nestedElements),
+			"blocks":      buildBlockTargetsJSON(nestedElements),
+			"frontmatter": buildFrontmatterTargetsJSON(nestedElements),
+		},
+		"detailed_structure": buildDetailedStructureJSON(nestedElements),
+	}
 
-	// LLM-friendly structured output
-	fmt.Fprintf(&buf, "FILE_STRUCTURE_ANALYSIS\n")
-	fmt.Fprintf(&buf, "filepath: %s\n", filePath)
+	// Convert to JSON
+	jsonData, err := json.MarshalIndent(structureData, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal JSON: %v", err)), nil
+	}
 
-	// Summary information
-	summary := generateStructureSummary(elements)
-	fmt.Fprintf(&buf, "summary: %s\n", summary)
-
-	// Patch targets in structured format
-	fmt.Fprintf(&buf, "\nPATCH_TARGETS:\n")
-
-	// Headings
-	fmt.Fprintf(&buf, "headings:\n")
-	printHeadingTargetsStructured(&buf, nestedElements, 0)
-
-	// Blocks
-	fmt.Fprintf(&buf, "blocks:\n")
-	printBlockTargetsStructured(&buf, nestedElements, 0)
-
-	// Frontmatter
-	fmt.Fprintf(&buf, "frontmatter:\n")
-	printFrontmatterTargetsStructured(&buf, nestedElements, 0)
-
-	// Detailed structure
-	fmt.Fprintf(&buf, "\nDETAILED_STRUCTURE:\n")
-	printNestedStructureStructured(&buf, nestedElements, 0)
-
-	return mcp.NewToolResultText(buf.String()), nil
+	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
 // printPatchTargets prints patch-friendly target information
@@ -1354,6 +1343,130 @@ func printNestedStructureStructured(buf *strings.Builder, elements []types.Neste
 			printNestedStructureStructured(buf, element.Children, depth+1)
 		}
 	}
+}
+
+// buildHeadingTargetsJSON builds JSON structure for heading targets
+func buildHeadingTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+	var headings []map[string]interface{}
+
+	for _, element := range elements {
+		if element.Element.Type == "heading" {
+			target := createPatchTarget(element)
+			if target != "" {
+				heading := map[string]interface{}{
+					"title":  element.Element.Title,
+					"target": target,
+					"level":  element.Element.Level,
+					"line":   element.Element.Line,
+				}
+
+				// Add children if they exist
+				if len(element.Children) > 0 {
+					heading["children"] = buildHeadingTargetsJSON(element.Children)
+				}
+
+				headings = append(headings, heading)
+			}
+		}
+	}
+
+	return headings
+}
+
+// buildBlockTargetsJSON builds JSON structure for block targets
+func buildBlockTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+	var blocks []map[string]interface{}
+
+	for _, element := range elements {
+		if element.Element.Type == "code_block" || element.Element.Type == "table" || element.Element.Type == "paragraph" {
+			blockID := extractBlockID(element.Element)
+			if blockID != "" {
+				content := getContentPreview(element.Element)
+				block := map[string]interface{}{
+					"type":     element.Element.Type,
+					"block_id": blockID,
+					"line":     element.Element.Line,
+				}
+
+				if content != "" {
+					// Truncate content for JSON output
+					if len(content) > 200 {
+						content = content[:200] + "..."
+					}
+					block["content_preview"] = content
+				}
+
+				blocks = append(blocks, block)
+			}
+		}
+	}
+
+	return blocks
+}
+
+// buildFrontmatterTargetsJSON builds JSON structure for frontmatter targets
+func buildFrontmatterTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+	var frontmatter []map[string]interface{}
+
+	for _, element := range elements {
+		if element.Element.Type == "frontmatter" {
+			fields := extractFrontmatterFields(element.Element.Content)
+			for fieldName, fieldValue := range fields {
+				frontmatter = append(frontmatter, map[string]interface{}{
+					"field": fieldName,
+					"value": fieldValue,
+					"line":  element.Element.Line,
+				})
+			}
+		}
+	}
+
+	return frontmatter
+}
+
+// buildDetailedStructureJSON builds JSON structure for detailed structure
+func buildDetailedStructureJSON(elements []types.NestedElement) []map[string]interface{} {
+	var structure []map[string]interface{}
+
+	for _, element := range elements {
+		item := map[string]interface{}{
+			"type": element.Element.Type,
+			"line": element.Element.Line,
+		}
+
+		if element.Element.Title != "" {
+			item["title"] = element.Element.Title
+		}
+
+		if element.Element.Level > 1 {
+			item["level"] = element.Element.Level
+		}
+
+		description := getElementDescription(element.Element)
+		if description != "" {
+			item["description"] = description
+		}
+
+		if element.Element.Content != "" {
+			content := getContentPreview(element.Element)
+			if content != "" {
+				// Truncate content for JSON output
+				if len(content) > 200 {
+					content = content[:200] + "..."
+				}
+				item["content_preview"] = content
+			}
+		}
+
+		// Add children if they exist
+		if len(element.Children) > 0 {
+			item["children"] = buildDetailedStructureJSON(element.Children)
+		}
+
+		structure = append(structure, item)
+	}
+
+	return structure
 }
 
 // getContentPreview returns the full content of the element (no longer truncated)
