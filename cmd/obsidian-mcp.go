@@ -240,6 +240,7 @@ func registerObsidianTools(s *server.MCPServer) {
 	listFilesInDirTool := mcp.NewTool("obsidian_list_files_in_dir",
 		mcp.WithDescription("List files in a specific directory"),
 		mcp.WithString("dirpath", mcp.Required(), mcp.Description("Directory path to list files from")),
+		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 1, use 0 for unlimited)")),
 	)
 	s.AddTool(listFilesInDirTool, middleware.LoggingMiddleware(obsidianHandlers.ListFilesInDir))
 

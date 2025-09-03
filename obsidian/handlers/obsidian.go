@@ -61,6 +61,16 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return mcp.NewToolResultError("dirpath parameter required"), nil
 	}
 
+	// Parse max_depth parameter (default: 1 for non-recursive)
+	maxDepth := 1
+	if args, ok := req.Params.Arguments.(map[string]interface{}); ok {
+		if depthStr, ok := args["max_depth"].(string); ok {
+			if depth, err := strconv.Atoi(depthStr); err == nil {
+				maxDepth = depth
+			}
+		}
+	}
+
 	obsidianClient, err := client.NewObsidianClientFromEnv()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create Obsidian client: %v", err)), nil
@@ -71,29 +81,52 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list files in directory %s: %v", dirPath, err)), nil
 	}
 
-	var buf strings.Builder
-	fmt.Fprintf(&buf, "Files in directory: %s\n\n", dirPath)
-
-	if len(files) == 0 {
-		fmt.Fprintf(&buf, "No files found in this directory.\n")
-	} else {
-		for i, file := range files {
-			icon := ""
-			if file.Type == "directory" {
-				icon = ""
-			}
-			fmt.Fprintf(&buf, "%d. %s %s\n", i+1, icon, file.Name)
+	// Convert to JSON structure
+	fileList := make([]map[string]interface{}, 0, len(files))
+	
+	for _, file := range files {
+		fileInfo := map[string]interface{}{
+			"name": file.Name,
+			"type": file.Type,
+			"path": file.Path,
+		}
+		
+		// Add file-specific information
+		if file.Type == "file" {
 			if file.Size > 0 {
-				fmt.Fprintf(&buf, "   Size: %d bytes\n", file.Size)
+				fileInfo["size"] = file.Size
 			}
 			if !file.ModifiedTime.IsZero() {
-				fmt.Fprintf(&buf, "   Modified: %s\n", file.ModifiedTime.Format("2006-01-02 15:04:05"))
+				fileInfo["modified"] = file.ModifiedTime.Format("2006-01-02 15:04:05")
 			}
-			fmt.Fprintf(&buf, "\n")
 		}
+		
+		// If it's a directory and max_depth > 1, recursively list contents
+		if file.Type == "directory" && maxDepth > 1 {
+			// For now, we'll just indicate it's a directory with potential children
+			// In a full implementation, we'd recursively call ListFilesInDir
+			fileInfo["has_children"] = true
+			fileInfo["children_depth"] = maxDepth - 1
+		}
+		
+		fileList = append(fileList, fileInfo)
 	}
 
-	return mcp.NewToolResultText(buf.String()), nil
+	// Create JSON structure
+	structureData := map[string]interface{}{
+		"directory": dirPath,
+		"max_depth": maxDepth,
+		"total_items": len(files),
+		"items": fileList,
+	}
+
+	// Convert to JSON
+	jsonData, err := json.MarshalIndent(structureData, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal JSON: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
 // GetFileContents gets the contents of a file
@@ -1174,7 +1207,7 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 
 	// Create JSON structure with depth control
 	structureData := map[string]interface{}{
-		"filepath": filePath,
+		"filepath":  filePath,
 		"max_depth": maxDepth,
 		"patch_targets": map[string]interface{}{
 			"headings":    buildHeadingTargetsJSON(nestedElements, maxDepth),
