@@ -1165,22 +1165,27 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 	// Create JSON structure
 	structureData := map[string]interface{}{
 		"filepath": filePath,
-		"summary":  generateStructureSummary(elements),
 		"patch_targets": map[string]interface{}{
 			"headings":    buildHeadingTargetsJSON(nestedElements),
 			"blocks":      buildBlockTargetsJSON(nestedElements),
 			"frontmatter": buildFrontmatterTargetsJSON(nestedElements),
 		},
-		"detailed_structure": buildDetailedStructureJSON(nestedElements),
+		"structure": buildDetailedStructureJSON(nestedElements),
 	}
 
-	// Convert to JSON
+	// Convert to JSON with proper encoding
 	jsonData, err := json.MarshalIndent(structureData, "", "  ")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal JSON: %v", err)), nil
 	}
 
-	return mcp.NewToolResultText(string(jsonData)), nil
+	// Convert to string and replace Unicode escapes with actual characters
+	jsonString := string(jsonData)
+	jsonString = strings.ReplaceAll(jsonString, "\\u0026", "&")
+	jsonString = strings.ReplaceAll(jsonString, "\\u003c", "<")
+	jsonString = strings.ReplaceAll(jsonString, "\\u003e", ">")
+
+	return mcp.NewToolResultText(jsonString), nil
 }
 
 // printPatchTargets prints patch-friendly target information
@@ -1389,11 +1394,7 @@ func buildBlockTargetsJSON(elements []types.NestedElement) []map[string]interfac
 				}
 
 				if content != "" {
-					// Truncate content for JSON output
-					if len(content) > 200 {
-						content = content[:200] + "..."
-					}
-					block["content_preview"] = content
+					block["content"] = content
 				}
 
 				blocks = append(blocks, block)
@@ -1450,11 +1451,7 @@ func buildDetailedStructureJSON(elements []types.NestedElement) []map[string]int
 		if element.Element.Content != "" {
 			content := getContentPreview(element.Element)
 			if content != "" {
-				// Truncate content for JSON output
-				if len(content) > 200 {
-					content = content[:200] + "..."
-				}
-				item["content_preview"] = content
+				item["content"] = content
 			}
 		}
 
