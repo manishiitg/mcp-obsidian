@@ -1229,6 +1229,9 @@ func printPatchTargets(buf *strings.Builder, elements []types.NestedElement, dep
 // - Single heading: "Troubleshooting"
 // - Nested heading: "Troubleshooting::Common Issues"
 // - Deep nested: "Quick Summary::Key Points About the Certificate File"
+//
+// Note: This function returns the exact original heading text to ensure
+// compatibility with the Obsidian API patch operations.
 func createPatchTarget(element types.NestedElement) string {
 	if element.Element.Type != "heading" {
 		return ""
@@ -1242,17 +1245,15 @@ func createPatchTarget(element types.NestedElement) string {
 		if strings.HasPrefix(pathItem, "heading:") {
 			title := strings.TrimPrefix(pathItem, "heading:")
 			if title != "" {
-				// Clean the title for use as a target
-				cleanTitle := removeEmojisAndSpecialChars(title)
-				pathParts = append(pathParts, cleanTitle)
+				// Use the original title, not cleaned version
+				pathParts = append(pathParts, title)
 			}
 		}
 	}
 
 	// If no path parts found, use the current element's title
 	if len(pathParts) == 0 {
-		cleanTitle := removeEmojisAndSpecialChars(element.Element.Title)
-		return cleanTitle
+		return element.Element.Title
 	}
 
 	// Join with the delimiter expected by the API (::)
