@@ -297,6 +297,7 @@ func registerObsidianTools(s *server.MCPServer) {
 	discoverStructureTool := mcp.NewTool("obsidian_discover_structure",
 		mcp.WithDescription("Discover and analyze the structure of a markdown file, showing patch-friendly targets for headings, blocks, and frontmatter. Always use this instead of reading full file contents."),
 		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
+		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 3, use 0 for unlimited)")),
 	)
 	s.AddTool(discoverStructureTool, obsidianHandlers.DiscoverMarkdownStructure)
 

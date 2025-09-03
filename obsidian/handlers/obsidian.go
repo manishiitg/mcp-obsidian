@@ -1149,6 +1149,16 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 		return mcp.NewToolResultError("filepath parameter required"), nil
 	}
 
+	// Parse max_depth parameter (default: 3)
+	maxDepth := 3
+	if args, ok := req.Params.Arguments.(map[string]interface{}); ok {
+		if depthStr, ok := args["max_depth"].(string); ok {
+			if depth, err := strconv.Atoi(depthStr); err == nil {
+				maxDepth = depth
+			}
+		}
+	}
+
 	obsidianClient, err := client.NewObsidianClientFromEnv()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create Obsidian client: %v", err)), nil
@@ -1162,15 +1172,16 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 	elements := parseMarkdownElements(content)
 	nestedElements := buildNestedStructure(elements)
 
-	// Create JSON structure
+	// Create JSON structure with depth control
 	structureData := map[string]interface{}{
 		"filepath": filePath,
+		"max_depth": maxDepth,
 		"patch_targets": map[string]interface{}{
-			"headings":    buildHeadingTargetsJSON(nestedElements),
-			"blocks":      buildBlockTargetsJSON(nestedElements),
-			"frontmatter": buildFrontmatterTargetsJSON(nestedElements),
+			"headings":    buildHeadingTargetsJSON(nestedElements, maxDepth),
+			"blocks":      buildBlockTargetsJSON(nestedElements, maxDepth),
+			"frontmatter": buildFrontmatterTargetsJSON(nestedElements, maxDepth),
 		},
-		"structure": buildDetailedStructureJSON(nestedElements),
+		"structure": buildDetailedStructureJSON(nestedElements, maxDepth),
 	}
 
 	// Convert to JSON with proper encoding
@@ -1351,7 +1362,7 @@ func printNestedStructureStructured(buf *strings.Builder, elements []types.Neste
 }
 
 // buildHeadingTargetsJSON builds JSON structure for heading targets
-func buildHeadingTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+func buildHeadingTargetsJSON(elements []types.NestedElement, maxDepth int) []map[string]interface{} {
 	var headings []map[string]interface{}
 
 	for _, element := range elements {
@@ -1365,9 +1376,9 @@ func buildHeadingTargetsJSON(elements []types.NestedElement) []map[string]interf
 					"line":   element.Element.Line,
 				}
 
-				// Add children if they exist
-				if len(element.Children) > 0 {
-					heading["children"] = buildHeadingTargetsJSON(element.Children)
+				// Add children if they exist and within depth limit
+				if len(element.Children) > 0 && (maxDepth == 0 || element.Level < maxDepth) {
+					heading["children"] = buildHeadingTargetsJSON(element.Children, maxDepth)
 				}
 
 				headings = append(headings, heading)
@@ -1379,7 +1390,7 @@ func buildHeadingTargetsJSON(elements []types.NestedElement) []map[string]interf
 }
 
 // buildBlockTargetsJSON builds JSON structure for block targets
-func buildBlockTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+func buildBlockTargetsJSON(elements []types.NestedElement, maxDepth int) []map[string]interface{} {
 	var blocks []map[string]interface{}
 
 	for _, element := range elements {
@@ -1406,7 +1417,7 @@ func buildBlockTargetsJSON(elements []types.NestedElement) []map[string]interfac
 }
 
 // buildFrontmatterTargetsJSON builds JSON structure for frontmatter targets
-func buildFrontmatterTargetsJSON(elements []types.NestedElement) []map[string]interface{} {
+func buildFrontmatterTargetsJSON(elements []types.NestedElement, maxDepth int) []map[string]interface{} {
 	var frontmatter []map[string]interface{}
 
 	for _, element := range elements {
@@ -1426,7 +1437,7 @@ func buildFrontmatterTargetsJSON(elements []types.NestedElement) []map[string]in
 }
 
 // buildDetailedStructureJSON builds JSON structure for detailed structure
-func buildDetailedStructureJSON(elements []types.NestedElement) []map[string]interface{} {
+func buildDetailedStructureJSON(elements []types.NestedElement, maxDepth int) []map[string]interface{} {
 	var structure []map[string]interface{}
 
 	for _, element := range elements {
@@ -1455,9 +1466,9 @@ func buildDetailedStructureJSON(elements []types.NestedElement) []map[string]int
 			}
 		}
 
-		// Add children if they exist
-		if len(element.Children) > 0 {
-			item["children"] = buildDetailedStructureJSON(element.Children)
+		// Add children if they exist and within depth limit
+		if len(element.Children) > 0 && (maxDepth == 0 || element.Level < maxDepth) {
+			item["children"] = buildDetailedStructureJSON(element.Children, maxDepth)
 		}
 
 		structure = append(structure, item)
