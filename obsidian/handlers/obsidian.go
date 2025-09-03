@@ -360,6 +360,38 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		return mcp.NewToolResultError(fmt.Sprintf("failed to create Obsidian client: %v", err)), nil
 	}
 
+	// Validate that the target exists before patching
+	if targetType == "heading" {
+		content, err := obsidianClient.GetFileContents(filePath)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get file contents for validation: %v", err)), nil
+		}
+
+		elements := parseMarkdownElements(content)
+		nestedElements := buildNestedStructure(elements)
+		
+		// Check if the target heading exists
+		targetExists := false
+		for _, element := range nestedElements {
+			if element.Element.Type == "heading" && strings.EqualFold(element.Element.Title, target) {
+				targetExists = true
+				break
+			}
+		}
+		
+		if !targetExists {
+			// Try to find similar headings
+			var similarHeadings []string
+			for _, element := range nestedElements {
+				if element.Element.Type == "heading" {
+					similarHeadings = append(similarHeadings, element.Element.Title)
+				}
+			}
+			
+			return mcp.NewToolResultError(fmt.Sprintf("target heading '%s' not found in file. Available headings: %v", target, similarHeadings)), nil
+		}
+	}
+
 	err = obsidianClient.PatchContent(filePath, operation, targetType, target, content)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to patch content in %s: %v", filePath, err)), nil
