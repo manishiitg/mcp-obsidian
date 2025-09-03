@@ -1163,30 +1163,33 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 	nestedElements := buildNestedStructure(elements)
 
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "📄 Markdown Structure for: %s\n\n", filePath)
 
-	// Add summary information
+	// LLM-friendly structured output
+	fmt.Fprintf(&buf, "FILE_STRUCTURE_ANALYSIS\n")
+	fmt.Fprintf(&buf, "filepath: %s\n", filePath)
+
+	// Summary information
 	summary := generateStructureSummary(elements)
-	fmt.Fprintf(&buf, "📊 %s\n\n", summary)
+	fmt.Fprintf(&buf, "summary: %s\n", summary)
 
-	// Add patch-friendly target information for all three target types
-	fmt.Fprintf(&buf, "🎯 PATCH-FRIENDLY TARGETS:\n")
-	fmt.Fprintf(&buf, "Use these exact targets for patch_content operations:\n\n")
+	// Patch targets in structured format
+	fmt.Fprintf(&buf, "\nPATCH_TARGETS:\n")
 
 	// Headings
-	fmt.Fprintf(&buf, "📝 HEADINGS (target_type: heading):\n")
-	printHeadingTargets(&buf, nestedElements, 0)
+	fmt.Fprintf(&buf, "headings:\n")
+	printHeadingTargetsStructured(&buf, nestedElements, 0)
 
 	// Blocks
-	fmt.Fprintf(&buf, "\n🔗 BLOCKS (target_type: block):\n")
-	printBlockTargets(&buf, nestedElements, 0)
+	fmt.Fprintf(&buf, "blocks:\n")
+	printBlockTargetsStructured(&buf, nestedElements, 0)
 
 	// Frontmatter
-	fmt.Fprintf(&buf, "\n📋 FRONTMATTER (target_type: frontmatter):\n")
-	printFrontmatterTargets(&buf, nestedElements, 0)
+	fmt.Fprintf(&buf, "frontmatter:\n")
+	printFrontmatterTargetsStructured(&buf, nestedElements, 0)
 
-	fmt.Fprintf(&buf, "\n📋 DETAILED STRUCTURE:\n")
-	printNestedStructure(&buf, nestedElements, 0)
+	// Detailed structure
+	fmt.Fprintf(&buf, "\nDETAILED_STRUCTURE:\n")
+	printNestedStructureStructured(&buf, nestedElements, 0)
 
 	return mcp.NewToolResultText(buf.String()), nil
 }
@@ -1307,6 +1310,48 @@ func printNestedStructure(buf *strings.Builder, elements []types.NestedElement, 
 		// Print children recursively
 		if len(element.Children) > 0 {
 			printNestedStructure(buf, element.Children, depth+1)
+		}
+	}
+}
+
+// printNestedStructureStructured prints nested structure in LLM-friendly structured format
+func printNestedStructureStructured(buf *strings.Builder, elements []types.NestedElement, depth int) {
+	for _, element := range elements {
+		indent := strings.Repeat("  ", depth)
+
+		fmt.Fprintf(buf, "%s- type: \"%s\"\n", indent, element.Element.Type)
+		fmt.Fprintf(buf, "%s  line: %d\n", indent, element.Element.Line)
+
+		if element.Element.Title != "" {
+			fmt.Fprintf(buf, "%s  title: \"%s\"\n", indent, element.Element.Title)
+		}
+
+		if element.Element.Level > 1 {
+			fmt.Fprintf(buf, "%s  level: %d\n", indent, element.Element.Level)
+		}
+
+		// Add descriptive text based on element type
+		description := getElementDescription(element.Element)
+		if description != "" {
+			fmt.Fprintf(buf, "%s  description: \"%s\"\n", indent, description)
+		}
+
+		// Add content preview (truncated for structured output)
+		if element.Element.Content != "" {
+			content := getContentPreview(element.Element)
+			if content != "" {
+				// Truncate content for structured output
+				if len(content) > 200 {
+					content = content[:200] + "..."
+				}
+				fmt.Fprintf(buf, "%s  content_preview: \"%s\"\n", indent, strings.ReplaceAll(content, "\n", "\\n"))
+			}
+		}
+
+		// Print children recursively
+		if len(element.Children) > 0 {
+			fmt.Fprintf(buf, "%s  children:\n", indent)
+			printNestedStructureStructured(buf, element.Children, depth+1)
 		}
 	}
 }
@@ -1849,6 +1894,29 @@ func printHeadingTargets(buf *strings.Builder, elements []types.NestedElement, d
 	}
 }
 
+// printHeadingTargetsStructured prints heading targets in LLM-friendly structured format
+func printHeadingTargetsStructured(buf *strings.Builder, elements []types.NestedElement, depth int) {
+	for _, element := range elements {
+		indent := strings.Repeat("  ", depth)
+
+		if element.Element.Type == "heading" {
+			// Create patch-friendly target
+			target := createPatchTarget(element)
+			if target != "" {
+				fmt.Fprintf(buf, "%s- title: \"%s\"\n", indent, element.Element.Title)
+				fmt.Fprintf(buf, "%s  target: \"%s\"\n", indent, target)
+				fmt.Fprintf(buf, "%s  level: %d\n", indent, element.Element.Level)
+				fmt.Fprintf(buf, "%s  line: %d\n", indent, element.Element.Line)
+			}
+
+			// Add nested targets for children
+			if len(element.Children) > 0 {
+				printHeadingTargetsStructured(buf, element.Children, depth+1)
+			}
+		}
+	}
+}
+
 // printBlockTargets prints patch-friendly block targets
 func printBlockTargets(buf *strings.Builder, elements []types.NestedElement, depth int) {
 	for _, element := range elements {
@@ -1871,6 +1939,33 @@ func printBlockTargets(buf *strings.Builder, elements []types.NestedElement, dep
 	}
 }
 
+// printBlockTargetsStructured prints block targets in LLM-friendly structured format
+func printBlockTargetsStructured(buf *strings.Builder, elements []types.NestedElement, depth int) {
+	for _, element := range elements {
+		indent := strings.Repeat("  ", depth)
+
+		// Look for elements that can have block references
+		if element.Element.Type == "code_block" || element.Element.Type == "table" || element.Element.Type == "paragraph" {
+			// Try to extract block ID from the content
+			blockID := extractBlockID(element.Element)
+			if blockID != "" {
+				content := getContentPreview(element.Element)
+				fmt.Fprintf(buf, "%s- type: \"%s\"\n", indent, element.Element.Type)
+				fmt.Fprintf(buf, "%s  block_id: \"%s\"\n", indent, blockID)
+				fmt.Fprintf(buf, "%s  line: %d\n", indent, element.Element.Line)
+				if content != "" {
+					fmt.Fprintf(buf, "%s  content_preview: \"%s\"\n", indent, strings.ReplaceAll(content, "\n", "\\n"))
+				}
+			}
+		}
+
+		// Check children recursively
+		if len(element.Children) > 0 {
+			printBlockTargetsStructured(buf, element.Children, depth+1)
+		}
+	}
+}
+
 // printFrontmatterTargets prints patch-friendly frontmatter targets
 func printFrontmatterTargets(buf *strings.Builder, elements []types.NestedElement, depth int) {
 	// Frontmatter is typically at the top level, so we'll look for it in the root elements
@@ -1880,6 +1975,22 @@ func printFrontmatterTargets(buf *strings.Builder, elements []types.NestedElemen
 			fields := extractFrontmatterFields(element.Element.Content)
 			for fieldName := range fields {
 				fmt.Fprintf(buf, "• %s: `%s`\n", fieldName, fieldName)
+			}
+		}
+	}
+}
+
+// printFrontmatterTargetsStructured prints frontmatter targets in LLM-friendly structured format
+func printFrontmatterTargetsStructured(buf *strings.Builder, elements []types.NestedElement, depth int) {
+	// Frontmatter is typically at the top level, so we'll look for it in the root elements
+	for _, element := range elements {
+		if element.Element.Type == "frontmatter" {
+			// Extract frontmatter fields
+			fields := extractFrontmatterFields(element.Element.Content)
+			for fieldName, fieldValue := range fields {
+				fmt.Fprintf(buf, "- field: \"%s\"\n", fieldName)
+				fmt.Fprintf(buf, "  value: \"%s\"\n", fieldValue)
+				fmt.Fprintf(buf, "  line: %d\n", element.Element.Line)
 			}
 		}
 	}
