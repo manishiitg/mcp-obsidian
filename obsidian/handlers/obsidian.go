@@ -251,8 +251,7 @@ func PutContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResu
 	}
 
 	var buf strings.Builder
-	fmt.Fprintf(&buf, "Successfully created/updated %s\n\n", filePath)
-	fmt.Fprintf(&buf, "Content:\n%s", content)
+	fmt.Fprintf(&buf, "Successfully created/updated %s", filePath)
 
 	return mcp.NewToolResultText(buf.String()), nil
 }
