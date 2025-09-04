@@ -1236,16 +1236,10 @@ func DiscoverMarkdownStructure(ctx context.Context, req mcp.CallToolRequest) (*m
 	elements := parseMarkdownElements(content)
 	nestedElements := buildNestedStructure(elements)
 
-	// Create JSON structure with depth control
+	// Create simplified JSON structure
 	structureData := map[string]interface{}{
-		"filepath":  filePath,
-		"max_depth": maxDepth,
-		"patch_targets": map[string]interface{}{
-			"headings":    buildHeadingTargetsJSON(nestedElements, maxDepth),
-			"blocks":      buildBlockTargetsJSON(nestedElements, maxDepth),
-			"frontmatter": buildFrontmatterTargetsJSON(nestedElements, maxDepth),
-		},
-		"structure": buildDetailedStructureJSON(nestedElements, maxDepth),
+		"filepath": filePath,
+		"headings": buildSimpleHeadingsJSON(nestedElements, maxDepth),
 	}
 
 	// Convert to JSON with proper encoding
@@ -1539,6 +1533,28 @@ func buildDetailedStructureJSON(elements []types.NestedElement, maxDepth int) []
 	}
 
 	return structure
+}
+
+// buildSimpleHeadingsJSON builds a simplified JSON structure for headings
+func buildSimpleHeadingsJSON(elements []types.NestedElement, maxDepth int) []string {
+	var headings []string
+
+	for _, element := range elements {
+		if element.Element.Type == "heading" {
+			target := createPatchTarget(element)
+			if target != "" {
+				headings = append(headings, target)
+			}
+
+			// Add children if they exist and within depth limit
+			if len(element.Children) > 0 && (maxDepth == 0 || element.Element.Level < maxDepth) {
+				children := buildSimpleHeadingsJSON(element.Children, maxDepth)
+				headings = append(headings, children...)
+			}
+		}
+	}
+
+	return headings
 }
 
 // getContentPreview returns the full content of the element (no longer truncated)
