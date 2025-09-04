@@ -61,8 +61,8 @@ func ListFilesInDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return mcp.NewToolResultError("dirpath parameter required"), nil
 	}
 
-	// Parse max_depth parameter (default: 1 for non-recursive)
-	maxDepth := 1
+	// Parse max_depth parameter (default: 3 for recursive listing)
+	maxDepth := 3
 	if args, ok := req.Params.Arguments.(map[string]interface{}); ok {
 		if depthStr, ok := args["max_depth"].(string); ok {
 			if depth, err := strconv.Atoi(depthStr); err == nil {
@@ -369,7 +369,7 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 
 		elements := parseMarkdownElements(content)
 		nestedElements := buildNestedStructure(elements)
-		
+
 		// Check if the target heading exists
 		targetExists := false
 		for _, element := range nestedElements {
@@ -378,7 +378,7 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 				break
 			}
 		}
-		
+
 		if !targetExists {
 			// Try to find similar headings
 			var similarHeadings []string
@@ -387,7 +387,7 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 					similarHeadings = append(similarHeadings, element.Element.Title)
 				}
 			}
-			
+
 			return mcp.NewToolResultError(fmt.Sprintf("target heading '%s' not found in file. Available headings: %v", target, similarHeadings)), nil
 		}
 	}

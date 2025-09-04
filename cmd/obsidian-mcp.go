@@ -240,7 +240,7 @@ func registerObsidianTools(s *server.MCPServer) {
 	listFilesInDirTool := mcp.NewTool("obsidian_list_files_in_dir",
 		mcp.WithDescription("List files in a specific directory"),
 		mcp.WithString("dirpath", mcp.Required(), mcp.Description("Directory path to list files from")),
-		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 1, use 0 for unlimited)")),
+		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 3, use 0 for unlimited)")),
 	)
 	s.AddTool(listFilesInDirTool, middleware.LoggingMiddleware(obsidianHandlers.ListFilesInDir))
 
@@ -296,7 +296,7 @@ func registerObsidianTools(s *server.MCPServer) {
 
 	// Discover markdown structure tool
 	discoverStructureTool := mcp.NewTool("obsidian_discover_structure",
-		mcp.WithDescription("Discover and analyze the structure of a markdown file, showing patch-friendly targets for headings, blocks, and frontmatter. Always use this instead of reading full file contents."),
+		mcp.WithDescription("Discover and analyze the structure of a single markdown file, showing patch-friendly targets for headings, blocks, and frontmatter. Always use this instead of reading full file contents."),
 		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
 		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 3, use 0 for unlimited)")),
 	)

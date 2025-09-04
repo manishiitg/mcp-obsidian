@@ -68,3 +68,4 @@ To verify the fix works:
 ./mcp-obsidian discover_structure --filepath "your-file.md"
 ./mcp-obsidian patch_content --filepath "your-file.md" --operation "append" --target_type "heading" --target "Exact Heading Text" --content "test content"
 ```
+
