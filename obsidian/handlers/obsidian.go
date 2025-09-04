@@ -1322,11 +1322,11 @@ func createPatchTarget(element types.NestedElement) string {
 		return element.Element.Title
 	}
 
-	// Join with the delimiter expected by the API (::)
+	// Join with the delimiter expected by the API (->)
 	if len(pathParts) == 1 {
 		return pathParts[0]
 	} else if len(pathParts) > 1 {
-		return strings.Join(pathParts, "::")
+		return strings.Join(pathParts, " -> ")
 	}
 
 	return element.Element.Title
