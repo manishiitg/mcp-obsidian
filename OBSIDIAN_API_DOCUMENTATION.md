@@ -51,7 +51,7 @@ Authorization: Bearer <your-api-key>
 
 **Example Request**:
 ```bash
-curl -k -H "Authorization: Bearer 1aae643418c6506d9e2185d4600959301c32ee130838dd7852da574c5dfe213f" \
+curl -k -H "Authorization: Bearer 0488e4465eb68ba7cef5c38e35709e83e2579d67845d21be99edf1936ede1e48" \
   "https://127.0.0.1:27124/"
 ```
 
@@ -128,7 +128,7 @@ Authorization: Bearer <your-api-key>
 
 **Example Request**:
 ```bash
-curl -k -H "Authorization: Bearer 1aae643418c6506d9e2185d4600959301c32ee130838dd7852da574c5dfe213f" \
+curl -k -H "Authorization: Bearer 0488e4465eb68ba7cef5c38e35709e83e2579d67845d21be99edf1936ede1e48" \
   "https://127.0.0.1:27124/obsidian-local-rest-api.crt"
 ```
 
@@ -193,7 +193,7 @@ Authorization: Bearer <your-api-key>
 
 **Example Request**:
 ```bash
-curl -k -H "Authorization: Bearer 1aae643418c6506d9e2185d4600959301c32ee130838dd7852da574c5dfe213f" \
+curl -k -H "Authorization: Bearer 0488e4465eb68ba7cef5c38e35709e83e2579d67845d21be99edf1936ede1e48" \
   "https://127.0.0.1:27124/openapi.yaml"
 ```
 

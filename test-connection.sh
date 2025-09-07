@@ -5,7 +5,7 @@
 echo "🔍 Testing Obsidian MCP Server connection..."
 
 # Set environment variables for testing
-export OBSIDIAN_API_KEY="1aae643418c6506d9e2185d4600959301c32ee130838dd7852da574c5dfe213f"
+export OBSIDIAN_API_KEY="0488e4465eb68ba7cef5c38e35709e83e2579d67845d21be99edf1936ede1e48"
 export OBSIDIAN_HOST="127.0.0.1"
 export OBSIDIAN_PORT="27124"
 export OBSIDIAN_VAULT_PATH="/Users/mipl/Library/CloudStorage/GoogleDrive-manish.prakash@citymall.live/My Drive/obsidian/drive"

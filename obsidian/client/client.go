@@ -193,7 +193,7 @@ func (c *ObsidianClient) ListFilesInVault() ([]types.FileInfo, error) {
 
 // ListFilesInDir lists files in a specific directory
 func (c *ObsidianClient) ListFilesInDir(dirPath string) ([]types.FileInfo, error) {
-	endpoint := fmt.Sprintf("/vault/%s/", url.PathEscape(dirPath))
+	endpoint := fmt.Sprintf("/vault/%s", url.PathEscape(dirPath))
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err

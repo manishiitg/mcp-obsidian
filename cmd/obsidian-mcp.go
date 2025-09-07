@@ -285,28 +285,168 @@ func registerObsidianTools(s *server.MCPServer) {
 
 	// Patch content tool
 	patchContentTool := mcp.NewTool("obsidian_patch_content",
-		mcp.WithDescription("Patch content in a file"),
-		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the file")),
-		mcp.WithString("operation", mcp.Required(), mcp.Description("Operation: append, prepend, replace")),
-		mcp.WithString("target_type", mcp.Required(), mcp.Description("Target type: heading, block, frontmatter")),
-		mcp.WithString("target", mcp.Required(), mcp.Description("Target identifier")),
-		mcp.WithString("content", mcp.Required(), mcp.Description("Content to patch")),
+		mcp.WithDescription(`Patch content in a file by targeting specific elements with surgical precision.
+
+OVERVIEW:
+This tool allows you to modify content in Obsidian files by targeting specific elements like headings, blocks, or frontmatter fields. It's designed for precise content updates without affecting the rest of the document.
+
+TARGET TYPES:
+
+1. HEADING TARGETS:
+   - Use exact heading text as it appears in the file
+   - Supports nested headings with "::" delimiter (e.g., "Section::Subsection")
+   - Case-sensitive - must match exactly
+   - Best practice: Use discover_structure first to get exact heading names
+
+2. BLOCK TARGETS:
+   - Use block IDs (e.g., "abc123", "def456")
+   - Block IDs are unique identifiers for specific content blocks
+   - Useful for targeting specific paragraphs or content sections
+
+3. FRONTMATTER TARGETS:
+   - Use field names (e.g., "status", "tags", "title", "last_updated")
+   - Updates YAML frontmatter at the top of the file
+   - Content should be the new field value (e.g., "in_progress" for status field)
+   - For array fields like tags, use proper YAML format: "['tag1', 'tag2']"
+
+OPERATIONS:
+- append: Add content after the target element
+- prepend: Add content before the target element  
+- replace: Replace the target element's content entirely
+
+EXAMPLES:
+- Update status: target_type="frontmatter", target="status", content="completed"
+- Add to heading: target_type="heading", target="Notes", operation="append", content="\n\nAdditional notes here"
+- Replace block: target_type="block", target="abc123", operation="replace", content="New content"
+
+TIPS:
+- Always use discover_structure first to see available targets
+- For frontmatter, use simple string values unless you know the field expects arrays/objects
+- Test with small changes first to verify the target works correctly`),
+		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the file relative to vault root. Examples: 'Projects/task.md', 'Notes/meeting-notes.md', 'Tasks/AWS_Security_Audit/progress/completed_steps.md'")),
+		mcp.WithString("operation", mcp.Required(), mcp.Description("Operation to perform: 'append' (add content after the target element), 'prepend' (add content before the target element), 'replace' (completely replace the target element's content)")),
+		mcp.WithString("target_type", mcp.Required(), mcp.Description("Type of target element: 'heading' (target should be exact heading text), 'block' (target should be block ID like 'abc123'), 'frontmatter' (target should be field name like 'status' or 'tags')")),
+		mcp.WithString("target", mcp.Required(), mcp.Description("Target identifier: For headings use exact heading text (case-sensitive), for blocks use block ID, for frontmatter use field name. Use discover_structure to find exact target names.")),
+		mcp.WithString("content", mcp.Required(), mcp.Description("Content to patch: For frontmatter use the new field value (e.g., 'completed' for status field), for headings/blocks use markdown content. Include newlines with \\n for proper formatting.")),
 	)
 	s.AddTool(patchContentTool, obsidianHandlers.PatchContent)
 
 	// Discover markdown structure tool
 	discoverStructureTool := mcp.NewTool("obsidian_discover_structure",
-		mcp.WithDescription("Discover and analyze the structure of a single markdown file, showing patch-friendly targets for headings, blocks, and frontmatter. Always use this instead of reading full file contents."),
-		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
-		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore (default: 3, use 0 for unlimited)")),
+		mcp.WithDescription(`Discover and analyze the complete structure of a markdown file with patch-friendly targets.
+
+OVERVIEW:
+This tool provides a comprehensive analysis of a markdown file's structure, showing all available targets for patch operations. It's the essential first step before using obsidian_patch_content to ensure you have the correct target names.
+
+WHAT IT SHOWS:
+
+1. HEADING STRUCTURE:
+   - All headings with their exact text (case-sensitive)
+   - Nested hierarchy with proper indentation
+   - Patch-friendly targets for each heading
+   - Line numbers for reference
+
+2. BLOCK STRUCTURE:
+   - Available block IDs for targeting specific content
+   - Block types and their locations
+   - Unique identifiers for precise targeting
+
+3. FRONTMATTER FIELDS:
+   - All available frontmatter fields
+   - Field names ready for patch operations
+   - Current field values for reference
+
+4. PATCH TARGETS:
+   - Exact target strings to use with obsidian_patch_content
+   - Properly formatted for copy-paste usage
+   - Case-sensitive and whitespace-preserved
+
+OUTPUT FORMATS:
+- Structured JSON with hierarchical data
+- Human-readable format with patch targets
+- Simple list format for quick reference
+
+BEST PRACTICES:
+- Always run this before patch operations
+- Use the exact target strings provided
+- Check max_depth to control detail level
+- Use this instead of reading full file contents
+
+EXAMPLES:
+- Discover all structure: max_depth=0 (unlimited)
+- Quick overview: max_depth=2 (shallow)
+- Detailed analysis: max_depth=5 (deep)
+
+TIPS:
+- Copy exact target strings from the output
+- Pay attention to case sensitivity
+- Use nested paths for complex documents
+- Check frontmatter field names carefully`),
+		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file relative to vault root. Examples: 'Projects/task.md', 'Notes/meeting-notes.md', 'Tasks/AWS_Security_Audit/progress/completed_steps.md'")),
+		mcp.WithString("max_depth", mcp.Description("Maximum depth to explore: 0=unlimited, 1=top level only, 2-3=moderate depth, 4+=deep analysis. Default: 3")),
 	)
 	s.AddTool(discoverStructureTool, obsidianHandlers.DiscoverMarkdownStructure)
 
 	// Get nested content tool
 	getNestedContentTool := mcp.NewTool("obsidian_get_nested_content",
-		mcp.WithDescription("Get content from a markdown file using nested path selectors (e.g., 'Troubleshooting -> Certificate Errors'). Always use this instead of reading full file contents"),
-		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file")),
-		mcp.WithString("nested_path", mcp.Required(), mcp.Description("Nested path using ' -> ' separator (e.g., 'Troubleshooting -> Certificate Errors')")),
+		mcp.WithDescription(`Get specific content from a markdown file using hierarchical path selectors.
+
+OVERVIEW:
+This tool extracts content from specific sections of a markdown file using nested path navigation. It's perfect for reading targeted content without loading entire files, making it ideal for large documents.
+
+HOW IT WORKS:
+
+1. PATH NAVIGATION:
+   - Uses " -> " separator for nested paths
+   - Navigates through heading hierarchy
+   - Finds content under specific sections
+   - Returns content with context
+
+2. CONTENT EXTRACTION:
+   - Extracts all content under the target heading
+   - Includes subheadings and their content
+   - Preserves markdown formatting
+   - Shows hierarchical structure
+
+3. PATCH TARGET DISPLAY:
+   - Shows exact target string for patch operations
+   - Provides copy-paste ready target names
+   - Displays case-sensitive heading text
+   - Includes nested path information
+
+PATH FORMATS:
+
+1. SIMPLE PATHS:
+   - "Introduction" (top-level heading)
+   - "Getting Started" (single heading)
+
+2. NESTED PATHS:
+   - "Troubleshooting -> Common Issues" (two levels)
+   - "Setup -> Installation -> Dependencies" (three levels)
+   - "Chapter 1 -> Section A -> Subsection 1" (deep nesting)
+
+3. COMPLEX PATHS:
+   - "AWS Security -> IAM Policies -> User Management"
+   - "Project Status -> Completed Tasks -> Documentation"
+
+BEST PRACTICES:
+- Use discover_structure first to find available paths
+- Copy exact path strings from discover_structure output
+- Use this instead of reading full file contents
+- Check path case sensitivity carefully
+
+EXAMPLES:
+- Get introduction: nested_path="Introduction"
+- Get troubleshooting: nested_path="Troubleshooting -> Common Issues"
+- Get deep content: nested_path="Chapter 1 -> Section A -> Subsection 1"
+
+TIPS:
+- Paths are case-sensitive
+- Use " -> " (space-arrow-space) as separator
+- Check discover_structure for exact path names
+- Great for reading specific sections of large documents`),
+		mcp.WithString("filepath", mcp.Required(), mcp.Description("Path to the markdown file relative to vault root. Examples: 'Projects/task.md', 'Notes/meeting-notes.md', 'Tasks/AWS_Security_Audit/progress/completed_steps.md'")),
+		mcp.WithString("nested_path", mcp.Required(), mcp.Description("Nested path using ' -> ' separator. Examples: 'Introduction', 'Troubleshooting -> Common Issues', 'Setup -> Installation -> Dependencies'. Use discover_structure to find exact path names.")),
 	)
 	s.AddTool(getNestedContentTool, obsidianHandlers.GetNestedContent)
 

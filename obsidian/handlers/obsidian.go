@@ -346,6 +346,8 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 		if strings.Contains(target, " -> ") {
 			target = strings.ReplaceAll(target, " -> ", "::")
 		}
+		// Clean up any extra whitespace but preserve the original format
+		target = strings.TrimSpace(target)
 	case "block":
 		// Block references should be clean block IDs
 		target = strings.TrimSpace(target)
@@ -361,20 +363,31 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 
 	// Validate that the target exists before patching
 	if targetType == "heading" {
-		content, err := obsidianClient.GetFileContents(filePath)
+		fileContent, err := obsidianClient.GetFileContents(filePath)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to get file contents for validation: %v", err)), nil
 		}
 
-		elements := parseMarkdownElements(content)
+		elements := parseMarkdownElements(fileContent)
 		nestedElements := buildNestedStructure(elements)
 
-		// Check if the target heading exists
+		// Check if the target heading exists with exact matching
 		targetExists := false
+		var exactMatch string
 		for _, element := range nestedElements {
-			if element.Element.Type == "heading" && strings.EqualFold(element.Element.Title, target) {
-				targetExists = true
-				break
+			if element.Element.Type == "heading" {
+				// Try exact match first
+				if element.Element.Title == target {
+					targetExists = true
+					exactMatch = element.Element.Title
+					break
+				}
+				// Fallback to case-insensitive match
+				if strings.EqualFold(element.Element.Title, target) {
+					targetExists = true
+					exactMatch = element.Element.Title
+					break
+				}
 			}
 		}
 
@@ -389,11 +402,19 @@ func PatchContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolRe
 
 			return mcp.NewToolResultError(fmt.Sprintf("target heading '%s' not found in file. Available headings: %v", target, similarHeadings)), nil
 		}
+
+		// Use the exact match from the file if we found one
+		if exactMatch != "" && exactMatch != target {
+			target = exactMatch
+		}
 	}
 
 	err = obsidianClient.PatchContent(filePath, operation, targetType, target, content)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to patch content in %s: %v", filePath, err)), nil
+		// Provide more detailed error information for debugging
+		errorMsg := fmt.Sprintf("failed to patch content in %s: %v\n\nDebug info:\n- File: %s\n- Operation: %s\n- Target Type: %s\n- Target: '%s'\n- Content length: %d chars",
+			filePath, err, filePath, operation, targetType, target, len(content))
+		return mcp.NewToolResultError(errorMsg), nil
 	}
 
 	var buf strings.Builder
